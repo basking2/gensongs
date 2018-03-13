@@ -1,4 +1,6 @@
 import { Component, OnInit } from '@angular/core';
+import { DomSanitizer } from '@angular/platform-browser';
+import { SafeScript } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-tempsong',
@@ -7,7 +9,14 @@ import { Component, OnInit } from '@angular/core';
 })
 export class TempsongComponent implements OnInit {
 
-  constructor() { }
+  script: SafeScript
+
+
+  constructor(domSanitizer: DomSanitizer) {
+    this.script = domSanitizer.bypassSecurityTrustHtml(
+      '<script src="assets/tempsong.js" type="text/javascript"></script>'
+    )
+  }
 
   ngOnInit() {
   }

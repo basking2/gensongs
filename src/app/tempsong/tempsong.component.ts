@@ -17,7 +17,6 @@ var WIDTH = 256
 export class TempsongComponent implements OnInit {
 
   script: SafeScript
-  clickMessage: String
   midi: any
 
   constructor(
@@ -29,12 +28,6 @@ export class TempsongComponent implements OnInit {
       '<script src="assets/tempsong.js" type="text/javascript"></script>'
     )
     this.midi = midiRefService.window.MIDI
-  }
-
-  toXylod(byte: number) : number[] {
-    // Get LOD
-
-    return []
   }
 
   indexToLod(x: number) : number {
@@ -71,7 +64,7 @@ export class TempsongComponent implements OnInit {
     var offset = byteNum * 8
 
     for (var i = 7; i >= 0; i--) {
-      console.log(b >>i, i)
+      // console.log(b >>i, i)
       if (!! ((b >> i) & 0x1)) {
         var xylod = this.indexToXylod(offset + (8 - i))
         console.log(xylod)
@@ -80,11 +73,13 @@ export class TempsongComponent implements OnInit {
     }
     // (4 ^ lod - 1) / 3 = x
     // log_4((3 * x) + 1)
-
     return xylods;
   }
 
   ngOnInit() {
+  }
+
+  playATile() {
     this.http.get('assets/datasource.js').subscribe(
       config => {
         var [p, v] = config["p"].split(":", 2)
@@ -100,20 +95,38 @@ export class TempsongComponent implements OnInit {
           ).subscribe(
             data => {
               var coverage = new Uint8Array(data)
-              console.log(coverage)
-              console.log(coverage.byteLength)
-              console.log(typeof(coverage))
-              console.log(coverage[0])
-              var c = 0
+              // console.log(coverage)
+              // console.log(coverage.byteLength)
+              var xylod = null
               for (var i = coverage.byteLength-1; i != 0; i--) {
-                c = coverage[i]
-                // console.log("C=", c, i)
+                var c = coverage[i]
                 if (c > 0) {
-                  console.log("Coverage", i, c)
-                  this.toXylods(i, c)
-
+                  xylod = this.toXylods(i, c)
+                  xylod = xylod[xylod.length-1]
                   break;
                 }
+              }
+              if (!!xylod) {
+                console.log("Got tile ", xylod, "Playing.")
+                this.http.get(
+                  config['url'] +
+                    "/data?products="+config["p"] +
+                    "&t="+t+
+                    "&x="+xylod[0]+
+                    "&y="+xylod[1]+
+                    "&lod="+xylod[2],
+                  {
+                    'responseType': 'arraybuffer',
+                    'observe': 'body'
+                  }
+                ).subscribe(
+                  data => {
+                    var tile = new Float32Array(data)
+                    console.log("Got tile!", tile.length)
+                    this.playTile(tile, 256, 256)
+                  },
+                  err => console.error(err)
+                )
               }
             },
             err => console.error(err)
@@ -124,9 +137,78 @@ export class TempsongComponent implements OnInit {
   }
 
   onClickMe() {
-    this.clickMessage = 'You are my hero!';
     this.midiRefService.play()
   }
 
+  numToNote(num) {
+    num = Math.abs(num)
+    num = Math.sin(num) / 2 / Math.PI * 40
+    num = Math.floor(num) % 40
+    if (num == 0 || num != num) {
+      return NaN
+    }
+    num += 60
+    console.log("NUM: ", num)
+    return num
+  }
+
+  duration(num, prev) {
+    num = Math.floor(Math.abs(num - prev)) % 4
+    if (num == 0) {
+      return 0.15
+    }
+    else if (num == 1) {
+      return 0.30
+    }
+    else if (num == 2) {
+      return 0.45
+    }
+    else {
+      return 0.60
+    }
+  }
+
+  playTile(tile: Float32Array, width: number, height: number) {
+    //  play(delay = 0, duration = 0.75, note = 50, velocity = 127) : any {
+    var row1 = Math.floor((height / 2) + 2)
+    var row2 = Math.floor((height / 2) - 2)
+    var offset1 = row1 * width
+    var offset2 = row2 * width
+    var duration = 0.15
+    var delay = 0
+    var note = 50
+    var velocity = 127
+    var prev1 = tile[offset1]
+    var prev2 = tile[offset2]
+
+    for (var x = 0; x < width; x++) {
+      var num1 = tile[offset1 + x]
+      var num2 = tile[offset2 + x]
+
+      duration = this.duration(num1, prev1)
+      note = this.numToNote(num1+x) + 2
+      var played = false
+      if (!!note && prev1 != num1) {
+        this.midiRefService.play(delay, duration, note, velocity)
+        played = true
+      }
+
+      duration = this.duration(num2, prev2)
+      note = this.numToNote(num1 + num2+x) - 2
+      if (!!note && prev2 != num2) {
+        this.midiRefService.play(delay, duration, note, velocity)
+        played = true
+      }
+
+      if (played) {
+        // Next note.
+        delay += duration
+      }
+
+      prev1 = num1
+      prev2 = num2
+    }
+
+  }
 
 }

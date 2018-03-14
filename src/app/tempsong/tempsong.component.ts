@@ -142,13 +142,27 @@ export class TempsongComponent implements OnInit {
 
   numToNote(num) {
     num = Math.abs(num)
-    num = Math.sin(num) / 2 / Math.PI * 40
-    num = Math.floor(num) % 40
+    // num = Math.sin(num) * 88
+
+    // Squash the number down into a "nice" range.
+    // This shaves off the top and bottom octaves.
+    num = (Math.floor(num) % 72) + 8
     if (num == 0 || num != num) {
       return NaN
     }
-    num += 60
-    console.log("NUM: ", num)
+
+    var scaleNum = num % 12
+    if (
+      scaleNum == 1
+      || scaleNum == 3
+      || scaleNum == 6
+      || scaleNum == 8
+      || scaleNum == 10
+    ) {
+      // Bump the note off chromatic.
+      num = num + 1
+    }
+
     return num
   }
 
@@ -186,7 +200,7 @@ export class TempsongComponent implements OnInit {
       var num2 = tile[offset2 + x]
 
       duration = this.duration(num1, prev1)
-      note = this.numToNote(num1+x) + 2
+      note = this.numToNote(num1)
       var played = false
       if (!!note && prev1 != num1) {
         this.midiRefService.play(delay, duration, note, velocity)
@@ -194,7 +208,7 @@ export class TempsongComponent implements OnInit {
       }
 
       duration = this.duration(num2, prev2)
-      note = this.numToNote(num1 + num2+x) - 2
+      note = this.numToNote(num2)
       if (!!note && prev2 != num2) {
         this.midiRefService.play(delay, duration, note, velocity)
         played = true
